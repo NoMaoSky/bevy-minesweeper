@@ -1,8 +1,6 @@
-# bevy-minesweeper
+# 使用Bevy Engine制作的扫雷小游戏
 
-## 使用Bevy Engine制作的扫雷小游戏
-
-### 实现功能：
+## 实现功能：
 1.生成地图  
 2.扫雷  
 3.标记雷  
