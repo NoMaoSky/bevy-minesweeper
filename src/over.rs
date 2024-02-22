@@ -55,7 +55,7 @@ pub fn game_win_system(
 ) {
     for mut texture_index in tile_texture_index_query.iter_mut() {
         if texture_index.0 == UNOPENED_INDEX {
-            texture_index.0 == MARKED_INDEX;
+            texture_index.0 = MARKED_INDEX;
         }
     }
     if let Ok(mut button_image) = button_query.get_single_mut() {
@@ -80,7 +80,6 @@ pub fn game_reset_system(
         texture_index.0 = UNOPENED_INDEX;
     }
 
-    info!("Reset last setp uncover:{}", last_setp.uncover);
     if !last_setp.uncover {
         last_setp.reset();
     }
