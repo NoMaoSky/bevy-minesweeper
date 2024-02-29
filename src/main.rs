@@ -8,7 +8,7 @@ use bevy_ecs_tilemap::{
     tiles::{TilePos, TileTextureIndex},
     TilemapPlugin,
 };
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
+// use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use board::{board_resize, board_setup, TILE_SIZE};
 use components::{
     BombCount, GameButton, Level, LevelButton, MainButton, NumberIndex, StartTimeCount,
@@ -60,7 +60,7 @@ pub fn main() {
                 })
                 .set(ImagePlugin::default_nearest()),
         )
-        .add_plugins(WorldInspectorPlugin::new())
+        // .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(TilemapPlugin)
         .add_event::<TileUncoverEvent>()
         .add_event::<TileNumberEvent>()

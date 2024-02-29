@@ -126,7 +126,7 @@ pub fn number_tiles_system(
             let mut unopend_coords = vec![];
             for coord in range {
                 let tile_pos = TilePos::new(coord.0, coord.1);
-                if let Some(tile_entity) = tile_storage.get(&tile_pos) {
+                if let Some(tile_entity) = tile_storage.checked_get(&tile_pos) {
                     if let Ok(texture_inedx) = tile_texture_inedx_query.get(tile_entity) {
                         match texture_inedx.0 {
                             MARKED_INDEX => {
