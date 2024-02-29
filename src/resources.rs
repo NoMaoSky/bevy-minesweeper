@@ -31,7 +31,7 @@ impl LastStep {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Debug, Hash, PartialEq, Eq, Clone)]
 pub struct BoardOptions {
     pub width: u32,
     pub height: u32,
@@ -49,6 +49,13 @@ impl Default for BoardOptions {
 }
 
 impl BoardOptions {
+    pub fn new(w: u32, h: u32, b: u32) -> Self {
+        BoardOptions {
+            width: w,
+            height: h,
+            bomb_count: b,
+        }
+    }
     pub fn area(&self) -> u32 {
         self.width * self.height
     }
@@ -79,7 +86,7 @@ const SQUARE_COORD: [(i8, i8); 8] = [
 ];
 
 impl Board {
-    pub fn reset(&mut self, options: &Res<BoardOptions>) {
+    pub fn reset(&mut self, options: &BoardOptions) {
         let mut rng = thread_rng();
         let mut map = (0..options.area())
             .map(|i| {
@@ -101,16 +108,23 @@ impl Board {
         }
 
         self.map = map
-            .chunks(options.width as usize)
+            .chunks(options.height as usize)
             .map(|i| i.to_vec())
             .collect();
 
-        self.console_output();
+        println!("{}", self.console_output());
+    }
+
+    fn width(&self) -> usize {
+        self.map[0].len()
+    }
+
+    fn height(&self) -> usize {
+        self.map.len()
     }
 
     pub fn get(&self, coord: (u32, u32)) -> u32 {
-        let x = coord.0 as usize;
-        let y = coord.1 as usize;
+        let (x, y) = (coord.0 as usize, coord.1 as usize);
         if let Some(x_val) = self.map.get(x) {
             if let Some(y_val) = x_val.get(y) {
                 return *y_val;
@@ -159,12 +173,12 @@ impl Board {
     }
 
     pub fn console_output(&self) -> String {
-        let separator: String = (0..=self.map.len() * 3).map(|_| '-').collect();
+        let separator: String = (0..=self.height() * 3).map(|_| '-').collect();
         let mut board = vec![];
 
-        for i in 0..self.map.len() {
+        for i in 0..self.width() {
             let mut row = vec![];
-            for j in 0..self.map.len() {
+            for j in 0..self.height() {
                 let column = self.map[j][i];
                 row.push(format!("{:2}", column));
             }

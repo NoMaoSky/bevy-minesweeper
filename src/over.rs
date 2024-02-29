@@ -7,16 +7,17 @@ use crate::{
         Board, BoardOptions, LastStep, StartTime, BOMB_INDEX, BOMB_RED_INDEX, MARKED_INDEX,
         UNOPENED_INDEX,
     },
-    GameState,
+    GameResetEvent, GameState,
 };
 
-pub fn game_over_system(
+pub fn game_lose_system(
     tile_pos_query: Query<&TilePos>,
     tile_storage_query: Query<&TileStorage>,
     mut tile_texture_index_query: Query<&mut TileTextureIndex>,
+    mut button_query: Query<&mut UiTextureAtlasImage, With<GameButton>>,
     board: Res<Board>,
     last_step: Res<LastStep>,
-    mut button_query: Query<&mut UiTextureAtlasImage, With<GameButton>>,
+    mut game_state: ResMut<NextState<GameState>>,
 ) {
     let tile_storage = tile_storage_query.single();
 
@@ -47,11 +48,14 @@ pub fn game_over_system(
             }
         }
     }
+
+    game_state.set(GameState::GameOver);
 }
 
 pub fn game_win_system(
     mut tile_texture_index_query: Query<&mut TileTextureIndex>,
     mut button_query: Query<&mut UiTextureAtlasImage, With<GameButton>>,
+    mut game_state: ResMut<NextState<GameState>>,
 ) {
     for mut texture_index in tile_texture_index_query.iter_mut() {
         if texture_index.0 == UNOPENED_INDEX {
@@ -61,13 +65,18 @@ pub fn game_win_system(
     if let Ok(mut button_image) = button_query.get_single_mut() {
         button_image.index = 2;
     }
+
+    game_state.set(GameState::GameOver);
 }
 
 pub fn game_reset_system(
+    mut commands: Commands,
+    mut tilemap_query: Query<(Entity, &mut TilemapSize, &mut TileStorage)>,
     mut tile_texture_index_query: Query<&mut TileTextureIndex>,
     mut button_query: Query<&mut UiTextureAtlasImage, With<GameButton>>,
+    mut game_reset_events: EventReader<GameResetEvent>,
     mut board: ResMut<Board>,
-    board_options: Res<BoardOptions>,
+    mut board_options: ResMut<BoardOptions>,
     mut start_time: ResMut<StartTime>,
     mut last_setp: ResMut<LastStep>,
     mut game_state: ResMut<NextState<GameState>>,
@@ -76,14 +85,59 @@ pub fn game_reset_system(
         button_image.index = 0;
     }
 
+    if !last_setp.uncover {
+        last_setp.reset();
+    }
+
     for mut texture_index in tile_texture_index_query.iter_mut() {
         texture_index.0 = UNOPENED_INDEX;
     }
 
-    if !last_setp.uncover {
-        last_setp.reset();
+    for game_reset in game_reset_events.read() {
+        if board_options.width == game_reset.0.width && board_options.height == game_reset.0.height
+        {
+            board.reset(&game_reset.0);
+            *board_options = game_reset.0.clone();
+            continue;
+        } else {
+            if let Ok((tilemap_entity, mut map_size, mut old_storage)) =
+                tilemap_query.get_single_mut()
+            {
+                let width = game_reset.0.width;
+                let height = game_reset.0.height;
+                let new_map_size = TilemapSize::new(width, height);
+                let mut new_storage = TileStorage::empty(new_map_size);
+
+                for entity in old_storage.iter().flatten() {
+                    commands.entity(*entity).despawn_recursive();
+                }
+
+                for x in 0..width {
+                    for y in 0..height {
+                        let tile_pos = TilePos::new(x, y);
+                        let tile_entity = commands
+                            .spawn(TileBundle {
+                                position: tile_pos,
+                                tilemap_id: TilemapId(tilemap_entity),
+                                texture_index: TileTextureIndex(UNOPENED_INDEX),
+                                ..default()
+                            })
+                            .id();
+                        new_storage.set(&tile_pos, tile_entity)
+                    }
+                }
+
+                *old_storage = new_storage;
+                *map_size = new_map_size;
+            } else {
+                println!("not storage");
+            }
+
+            board.reset(&game_reset.0);
+            *board_options = game_reset.0.clone();
+        }
     }
+
     start_time.0.reset();
-    board.reset(&board_options);
     game_state.set(GameState::InGame);
 }

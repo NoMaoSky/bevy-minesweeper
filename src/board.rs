@@ -3,7 +3,7 @@ use bevy_ecs_tilemap::prelude::*;
 
 use crate::{
     resources::{BoardOptions, UNOPENED_INDEX},
-    CAMERA_SCALE, WINDOW_PADDING, WINDOW_TOP_HEIGHT,
+    GameResetEvent, CAMERA_SCALE, WINDOW_PADDING, WINDOW_TOP_HEIGHT,
 };
 
 pub const TILE_SIZE: f32 = 16.;
@@ -11,6 +11,7 @@ pub const TILE_SIZE: f32 = 16.;
 pub fn board_setup(
     mut commands: Commands,
     tilemap_query: Query<Entity, With<TilemapId>>,
+    mut board_reset_event: EventWriter<GameResetEvent>,
     asset_server: Res<AssetServer>,
     board_options: Res<BoardOptions>,
 ) {
@@ -22,7 +23,7 @@ pub fn board_setup(
 
     let map_size = TilemapSize::new(board_options.width, board_options.height);
 
-    let tilemap_id = commands.spawn_empty().id();
+    let tilemap_entity = commands.spawn_empty().id();
 
     let mut tile_storage = TileStorage::empty(map_size);
 
@@ -32,7 +33,7 @@ pub fn board_setup(
             let tile_entity = commands
                 .spawn(TileBundle {
                     position: tile_pos,
-                    tilemap_id: TilemapId(tilemap_id),
+                    tilemap_id: TilemapId(tilemap_entity),
                     texture_index: TileTextureIndex(UNOPENED_INDEX),
                     ..default()
                 })
@@ -45,35 +46,41 @@ pub fn board_setup(
     let grid_size = tile_size.into();
     let map_type = TilemapType::default();
 
-    let mut transform = get_tilemap_center_transform(&map_size, &grid_size, &map_type, 0.0);
-    transform.translation.y -= 15.0;
-
-    commands.entity(tilemap_id).insert(TilemapBundle {
+    commands.entity(tilemap_entity).insert(TilemapBundle {
         grid_size,
         map_type,
         size: map_size,
         storage: tile_storage,
         texture: TilemapTexture::Single(texture_handle),
         tile_size,
-        transform,
+        transform: get_tilemap_center_transform(&map_size, &grid_size, &map_type, 0.0),
         ..default()
     });
+
+    board_reset_event.send(GameResetEvent(board_options.clone()));
 }
 
 pub fn board_resize(
-    // mut tilemap_query: Query<&mut Transform, With<TilemapType>>,
+    mut tilemap_query: Query<&mut Transform, With<TilemapType>>,
     mut window_query: Query<&mut Window>,
     board_options: Res<BoardOptions>,
 ) {
-    let board_width = board_options.width;
-    let board_height = board_options.height;
+    let board_size =
+        Vec2::splat(TILE_SIZE) * Vec2::new(board_options.width as f32, board_options.height as f32);
+
+    // info!("board_size:{:?}", board_size);
 
     if let Ok(mut window) = window_query.get_single_mut() {
-        let window_width = (TILE_SIZE * board_width as f32 + WINDOW_PADDING * 2.0) * CAMERA_SCALE;
-        let window_height = (TILE_SIZE * board_height as f32 + WINDOW_PADDING * 2.0) * CAMERA_SCALE
-            + WINDOW_TOP_HEIGHT;
-        window.resolution.set(window_width, window_height);
+        let window_width = board_size.x * CAMERA_SCALE + WINDOW_PADDING + WINDOW_PADDING;
+        let window_height = board_size.y * CAMERA_SCALE + WINDOW_TOP_HEIGHT + WINDOW_PADDING;
 
-        // window.resolution = WindowResolution::new(window_width, window_height);
+        // info!("WindowSize: {}x{}", window_width, window_height);
+        window.resolution.set(window_width, window_height);
+        // window.position.center(MonitorSelection::Current);
+
+        if let Ok(mut transform) = tilemap_query.get_single_mut() {
+            transform.translation.x = -(window_width / CAMERA_SCALE) / 2.0 + WINDOW_PADDING;
+            transform.translation.y = -(window_height / CAMERA_SCALE) / 2.0 + WINDOW_PADDING;
+        }
     };
 }

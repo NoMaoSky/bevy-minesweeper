@@ -5,7 +5,7 @@ use crate::{
     resources::{
         Board, BoardOptions, LastStep, BOMB_INDEX, MARKED_INDEX, OPENED_INDEX, UNOPENED_INDEX,
     },
-    GameOverState, GameState,
+    GameLoseEvent, GameResetEvent, GameWinEvent,
 };
 
 #[derive(Event)]
@@ -43,9 +43,10 @@ pub fn re_uncover_tile_system(
 
 pub fn safe_step_system(
     mut tile_uncover_events: EventReader<TileUncoverEvent>,
+    mut board_reset_event: EventWriter<GameResetEvent>,
     board: Res<Board>,
+    board_options: Res<BoardOptions>,
     mut last_step: ResMut<LastStep>,
-    mut game_state: ResMut<NextState<GameState>>,
 ) {
     for uncover_event in tile_uncover_events.read() {
         let coord = uncover_event.coord;
@@ -61,7 +62,7 @@ pub fn safe_step_system(
             last_step.coord = Some(coord);
 
             if last_step.uncover {
-                game_state.set(GameState::GameOver(GameOverState::Reset));
+                board_reset_event.send(GameResetEvent(board_options.clone()));
             }
         }
     }
@@ -83,7 +84,7 @@ pub fn uncover_tiles_system(
         for uncover_event in tile_uncover_events.read() {
             let coord = uncover_event.coord;
             let tile_pos = TilePos::new(coord.0, coord.1);
-            if let Some(tile_entity) = tile_storage.get(&tile_pos) {
+            if let Some(tile_entity) = tile_storage.checked_get(&tile_pos) {
                 if let Ok(mut texture_index) = tile_texture_inedx_query.get_mut(tile_entity) {
                     let coord = (tile_pos.x, tile_pos.y);
                     let mut state = board.get(coord);
@@ -105,7 +106,7 @@ pub fn uncover_tiles_system(
                         _ => (),
                     }
                 }
-            };
+            }
         }
     }
 }
@@ -152,21 +153,21 @@ pub fn number_tiles_system(
 pub fn check_tiles_system(
     mut tile_check_events: EventReader<TileCheckEvent>,
     mut tile_uncover_event: EventWriter<TileUncoverEvent>,
+    mut game_win_event: EventWriter<GameWinEvent>,
+    mut game_lose_event: EventWriter<GameLoseEvent>,
     tile_texture_inedx_query: Query<&TileTextureIndex>,
     board_options: Res<BoardOptions>,
     board: Res<Board>,
-    mut game_state: ResMut<NextState<GameState>>,
 ) {
     for check_event in tile_check_events.read() {
         let (coord, state) = (check_event.coord, check_event.state);
-
         let mut check = || {
             let uncover_count = tile_texture_inedx_query
                 .iter()
                 .filter(|index| index.0 == UNOPENED_INDEX || index.0 == MARKED_INDEX)
                 .count() as u32;
             if uncover_count == board_options.bomb_count {
-                game_state.set(GameState::GameOver(GameOverState::Win));
+                game_win_event.send(GameWinEvent);
             }
         };
 
@@ -178,7 +179,7 @@ pub fn check_tiles_system(
                 check();
             }
             BOMB_INDEX => {
-                game_state.set(GameState::GameOver(GameOverState::Lose));
+                game_lose_event.send(GameLoseEvent);
             }
             _ => {
                 check();
